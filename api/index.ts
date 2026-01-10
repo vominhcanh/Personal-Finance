@@ -1,17 +1,16 @@
-import serverlessExpress from '@vendia/serverless-express';
+import 'reflect-metadata';
 import { createApp } from '../src/main';
 
-let server: any;
+let appPromise: Promise<any>;
 
 async function bootstrap() {
     const app = await createApp();
     await app.init();
-
-    const expressApp = app.getHttpAdapter().getInstance();
-    return serverlessExpress({ app: expressApp });
+    return app.getHttpAdapter().getInstance();
 }
 
 export default async function handler(req, res) {
-    server = server ?? (await bootstrap());
-    return server(req, res);
+    appPromise = appPromise ?? bootstrap();
+    const app = await appPromise;
+    app(req, res);
 }
