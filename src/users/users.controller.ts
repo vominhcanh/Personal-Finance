@@ -14,9 +14,12 @@ export class UsersController {
         // req.user is set by JwtAuthGuard
         // We might want to fetch full details from DB excluding password
         const user = await this.usersService.findOne(req.user.email);
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
         // user includes passwordHash, we should sanitize it.
         // For simplicity now, just return what we have or transform.
-        const { passwordHash, ...result } = user?.toObject();
+        const { passwordHash, ...result } = user.toObject();
         return result;
     }
 }
