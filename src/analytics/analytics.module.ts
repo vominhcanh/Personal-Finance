@@ -1,6 +1,7 @@
 
 import { Module } from '@nestjs/common';
 import { AnalyticsService } from './analytics.service';
+import { AnalyticsController } from './analytics.controller';
 import { TransactionsModule } from '../transactions/transactions.module';
 import { DebtsModule } from '../debts/debts.module';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -17,7 +18,7 @@ import { Debt, DebtSchema } from '../debts/schemas/debt.schema';
         DebtsModule
     ],
     providers: [AnalyticsService],
-    controllers: [],
+    controllers: [AnalyticsController],
     exports: [AnalyticsService],
 })
 export class AnalyticsModule { }

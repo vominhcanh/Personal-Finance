@@ -4,6 +4,7 @@ import { AppModule } from './app.module';
 
 export async function createApp() {
   const app = await NestFactory.create(AppModule);
+  app.enableCors(); // Enable CORS for Vercel/Frontend
 
   const config = new DocumentBuilder()
     .setTitle('Personal Finance API')
@@ -24,7 +25,6 @@ async function bootstrap() {
   if (!process.env.VERCEL) {
     const port = process.env.PORT || 3000;
     await app.listen(port);
-    console.log(`Application is running on: ${await app.getUrl()}`);
   }
 }
 bootstrap();
