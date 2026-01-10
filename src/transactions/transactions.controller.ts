@@ -2,6 +2,7 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request, Query } from '@nestjs/common';
 import { TransactionsService } from './transactions.service';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PageOptionsDto } from '../common/dto/page-options.dto';
 import { PageDto } from '../common/dto/page.dto';
 import { Transaction } from './schemas/transaction.schema';
@@ -10,6 +11,7 @@ import { UpdateTransactionDto } from './dto/update-transaction.dto';
 
 @ApiTags('transactions')
 @ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('v1/transactions')
 export class TransactionsController {
     constructor(private readonly transactionsService: TransactionsService) { }

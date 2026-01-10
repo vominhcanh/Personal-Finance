@@ -1,7 +1,8 @@
 
 import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request, Query } from '@nestjs/common';
 import { DebtsService } from './debts.service';
-import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PageOptionsDto } from '../common/dto/page-options.dto';
 import { PageDto } from '../common/dto/page.dto';
 import { Debt } from './schemas/debt.schema';
@@ -10,6 +11,7 @@ import { UpdateDebtDto } from './dto/update-debt.dto';
 
 @ApiTags('debts')
 @ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('v1/debts')
 export class DebtsController {
     constructor(private readonly debtsService: DebtsService) { }
@@ -37,5 +39,11 @@ export class DebtsController {
     @Delete(':id')
     remove(@Request() req, @Param('id') id: string) {
         return this.debtsService.remove(id, req.user.userId);
+    }
+
+    @Post('pay-installment')
+    @ApiOperation({ summary: 'Pay a specific installment by Id' })
+    async payInstallment(@Request() req, @Body() body: { installmentId: string, walletId: string }) {
+        return this.debtsService.payInstallment(body.installmentId, body.walletId, req.user.userId);
     }
 }

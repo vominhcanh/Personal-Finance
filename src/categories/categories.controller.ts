@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request, Query } from '@nestjs/common';
 import { CategoriesService } from './categories.service';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PageOptionsDto } from '../common/dto/page-options.dto';
 import { PageDto } from '../common/dto/page.dto';
 import { Category } from './schemas/category.schema';
@@ -9,6 +10,7 @@ import { UpdateCategoryDto } from './dto/update-category.dto';
 
 @ApiTags('categories')
 @ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('v1/categories')
 export class CategoriesController {
     constructor(private readonly categoriesService: CategoriesService) { }

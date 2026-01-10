@@ -25,18 +25,23 @@ export class CreateDebtDto {
 
     // Installment Details
     @ApiProperty({ default: false })
-    @IsOptional()
+    @ApiProperty()
     @IsBoolean()
-    isInstallment?: boolean;
+    isInstallment: boolean;
 
     @ApiProperty({ required: false })
-    @IsOptional()
     @IsNumber()
+    @IsOptional()
     totalMonths?: number;
 
     @ApiProperty({ required: false })
+    @IsDateString()
     @IsOptional()
+    startDate?: string; // ISO date string
+
+    @ApiProperty({ required: false })
     @IsNumber()
+    @IsOptional()
     monthlyPayment?: number;
 
     @ApiProperty({ required: false })
