@@ -1,7 +1,7 @@
 
 import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request, Query } from '@nestjs/common';
 import { WalletsService } from './wallets.service';
-import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PageOptionsDto } from '../common/dto/page-options.dto';
 import { PageDto } from '../common/dto/page.dto';
@@ -19,6 +19,12 @@ export class WalletsController {
     @Post()
     create(@Request() req, @Body() createWalletDto: CreateWalletDto) {
         return this.walletsService.create(req.user.userId, createWalletDto);
+    }
+
+    @Post('seed-cards')
+    @ApiOperation({ summary: 'Generate sample Debit/Credit cards' })
+    seedCards(@Request() req) {
+        return this.walletsService.seedCards(req.user.userId);
     }
 
     @Get()

@@ -17,7 +17,24 @@ export class PageOptionsDto {
     @Min(1)
     @Max(50)
     @IsOptional()
+    @IsOptional()
     readonly per_page?: number = 20;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    readonly walletId?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    readonly categoryId?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    readonly fromDate?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    readonly toDate?: string;
 
     get skip(): number {
         // Default to 1 and 20 if undefined (though default above handles it mostly, accessors need care)

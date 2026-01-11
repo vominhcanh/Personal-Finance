@@ -15,6 +15,12 @@ export class User {
     @Prop()
     fullName: string;
 
+    @Prop()
+    dateOfBirth: Date;
+
+    @Prop({ enum: ['MALE', 'FEMALE', 'OTHER'] })
+    gender: string;
+
     @Prop({ default: Date.now })
     createdAt: Date;
 }

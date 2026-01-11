@@ -72,4 +72,52 @@ export class AnalyticsService {
             }
         ]);
     }
+    async getMonthlyTransactions(userId: string, monthStr?: string) { // monthStr: MM-YYYY
+        const now = new Date();
+        let month = now.getMonth();
+        let year = now.getFullYear();
+
+        if (monthStr) {
+            const parts = monthStr.split('-');
+            if (parts.length === 2) {
+                month = parseInt(parts[0]) - 1;
+                year = parseInt(parts[1]);
+            }
+        }
+
+        const start = new Date(year, month, 1);
+        const end = new Date(year, month + 1, 0, 23, 59, 59);
+
+        // Aggregation: Group by Day of Month
+        const dailyStats = await this.transactionModel.aggregate([
+            {
+                $match: {
+                    userId: new Types.ObjectId(userId),
+                    date: { $gte: start, $lte: end }
+                }
+            },
+            {
+                $group: {
+                    _id: { $dayOfMonth: "$date" },
+                    income: {
+                        $sum: { $cond: [{ $eq: ["$type", "INCOME"] }, "$amount", 0] }
+                    },
+                    expense: {
+                        $sum: { $cond: [{ $eq: ["$type", "EXPENSE"] }, "$amount", 0] }
+                    }
+                }
+            },
+            { $sort: { _id: 1 } }
+        ]);
+
+        // Return only days with data (User request)
+        const result = dailyStats.map(stat => ({
+            day: stat._id,
+            date: `${year}-${(month + 1).toString().padStart(2, '0')}-${stat._id.toString().padStart(2, '0')}`,
+            income: stat.income,
+            expense: stat.expense
+        }));
+
+        return result;
+    }
 }

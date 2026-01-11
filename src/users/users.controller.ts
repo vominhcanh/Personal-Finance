@@ -1,8 +1,10 @@
 
-import { Controller, Get, Request, UseGuards, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Request, UseGuards, NotFoundException, BadRequestException } from '@nestjs/common';
 import { UsersService } from './users.service';
-import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 @ApiTags('users')
 @ApiBearerAuth()
@@ -11,17 +13,37 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 export class UsersController {
     constructor(private readonly usersService: UsersService) { }
 
-    @Get('profile')
-    async getProfile(@Request() req) {
-        // req.user is set by JwtAuthGuard
-        // We might want to fetch full details from DB excluding password
+    @Get('me')
+    @ApiOperation({ summary: 'Get current user profile' })
+    async getMe(@Request() req) {
         const user = await this.usersService.findOne(req.user.email);
         if (!user) {
             throw new NotFoundException('User not found');
         }
-        // user includes passwordHash, we should sanitize it.
-        // For simplicity now, just return what we have or transform.
         const { passwordHash, ...result } = user.toObject();
         return result;
     }
+
+    @Patch('me')
+    @ApiOperation({ summary: 'Update current user profile' })
+    async updateMe(@Request() req, @Body() updateUserDto: UpdateUserDto) {
+        const user = await this.usersService.update(req.user.email, updateUserDto);
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+        const { passwordHash, ...result } = user.toObject();
+        return result;
+    }
+
+    @Post('change-password')
+    @ApiOperation({ summary: 'Change current user password' })
+    async changePassword(@Request() req, @Body() changePasswordDto: ChangePasswordDto) {
+        await this.usersService.changePassword(req.user.email, changePasswordDto);
+        return { message: 'Password changed successfully' };
+    }
+
+    // Keep legacy profile endpoint redirecting to getMe logic if needed, or remove.
+    // User asked for "get me", so /me is perfect.
+    // I will remove the old /profile if it conflicts or just leave it.
+    // The previous code had @Get('profile'). I will replace it with the above.
 }

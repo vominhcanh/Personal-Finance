@@ -134,6 +134,7 @@ export class DebtsService {
             // For now, call normal create (it creates its own session, which is "nested transaction" supported in Mongo 4+).
 
             const transactionType = debt.type === 'LOAN' ? 'EXPENSE' : 'INCOME'; // LOAN = I borrow -> Pay back = Expense.
+            const installmentIndex = debt.paidMonths + 1;
 
             await this.transactionsService.create(userId, {
                 walletId,
@@ -141,7 +142,7 @@ export class DebtsService {
                 amount: installment.amount,
                 type: transactionType as any,
                 date: new Date(),
-                note: `Payment for installment due ${installment.dueDate.toISOString().split('T')[0]}`,
+                note: `Pay installment #${installmentIndex} for Debt '${debt.partnerName}' (Due: ${installment.dueDate.toISOString().split('T')[0]})`,
             });
 
             // 2. Update Installment

@@ -29,4 +29,10 @@ export class AnalyticsController {
     async getCreditCardFees(@Request() req) {
         return this.analyticsService.getCreditCardFees(req.user.userId);
     }
+
+    @Get('transactions-monthly')
+    @ApiOperation({ summary: 'Get daily income/expense for a specific month (MM-YYYY) for Charts' })
+    async getMonthlyTransactions(@Request() req, @Query('month') month?: string) {
+        return this.analyticsService.getMonthlyTransactions(req.user.userId, month);
+    }
 }

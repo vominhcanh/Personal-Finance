@@ -25,6 +25,45 @@ export class WalletsService {
         });
         return defaultWallet.save();
     }
+
+    async seedCards(userId: string) {
+        const debitCard = new this.walletModel({
+            userId: new Types.ObjectId(userId),
+            name: 'VCB Debit',
+            type: 'DEBIT_CARD',
+            balance: 5000000,
+            initialBalance: 5000000,
+            currency: 'VND',
+            bankName: 'Vietcombank',
+            maskedNumber: '**** 1234',
+            cardType: 'VISA',
+            issuanceDate: new Date('2023-01-01'),
+            expirationDate: new Date('2028-01-01'),
+            status: 'ACTIVE'
+        });
+
+        const creditCard = new this.walletModel({
+            userId: new Types.ObjectId(userId),
+            name: 'TPBank EVO',
+            type: 'CREDIT_CARD',
+            balance: 0, // Current debt or available? Usually Wallet Balance is "Asset". For Credit Card, it is usually 0 or negative (debt). Let's start 0.
+            initialBalance: 0,
+            currency: 'VND',
+            bankName: 'TPBank',
+            maskedNumber: '**** 5678',
+            cardType: 'VISA',
+            creditLimit: 20000000,
+            statementDate: 20,
+            paymentDueDate: 5,
+            interestRate: 28, // 28% year
+            annualFee: 0,
+            status: 'ACTIVE'
+        });
+
+        await Promise.all([debitCard.save(), creditCard.save()]);
+        return { message: 'Cards seeded successfully', cards: [debitCard, creditCard] };
+    }
+
     async updateBalance(walletId: Types.ObjectId, amount: number, session: any) {
         return this.walletModel.findByIdAndUpdate(
             walletId,

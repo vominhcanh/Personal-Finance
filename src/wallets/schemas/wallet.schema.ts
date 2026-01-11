@@ -12,7 +12,7 @@ export class Wallet {
     @Prop({ required: true })
     name: string;
 
-    @Prop({ required: true, enum: ['CASH', 'BANK', 'CREDIT_CARD', 'SAVING'] })
+    @Prop({ required: true, enum: ['CASH', 'BANK', 'CREDIT_CARD', 'SAVING', 'DEBIT_CARD', 'PREPAID_CARD'] })
     type: string;
 
     @Prop({ required: true, default: 0 })
@@ -23,6 +23,25 @@ export class Wallet {
 
     @Prop({ default: 'VND' })
     currency: string;
+
+    @Prop({ default: 'ACTIVE', enum: ['ACTIVE', 'LOCKED'] })
+    status: string;
+
+    // --- Card Specifics ---
+    @Prop()
+    bankName: string; // Issuing Bank
+
+    @Prop()
+    maskedNumber: string; // **** 1234
+
+    @Prop()
+    cardType: string; // VISA, MASTER, JCB...
+
+    @Prop()
+    issuanceDate: Date;
+
+    @Prop()
+    expirationDate: Date;
 
     // Credit Card Specifics
     @Prop()
@@ -35,7 +54,17 @@ export class Wallet {
     paymentDueDate: number;
 
     @Prop()
+    interestRate: number; // %/year
+
+    @Prop()
+    annualFee: number;
+
+    @Prop()
     defaultSettlementFee: number;
+
+    // Supplementary Card
+    @Prop({ type: Types.ObjectId, ref: 'Wallet' })
+    linkedWalletId: Types.ObjectId;
 }
 
 export const WalletSchema = SchemaFactory.createForClass(Wallet);
