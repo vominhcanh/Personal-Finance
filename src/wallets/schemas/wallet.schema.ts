@@ -27,6 +27,15 @@ export class Wallet {
     @Prop({ default: 'ACTIVE', enum: ['ACTIVE', 'LOCKED'] })
     status: string;
 
+    @Prop({ type: Types.ObjectId, ref: 'Bank' })
+    bankId: Types.ObjectId;
+
+    @Prop()
+    logo: string;
+
+    @Prop()
+    color: string;
+
     // --- Card Specifics ---
     @Prop()
     bankName: string; // Issuing Bank

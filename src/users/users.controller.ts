@@ -39,7 +39,7 @@ export class UsersController {
     @ApiOperation({ summary: 'Change current user password' })
     async changePassword(@Request() req, @Body() changePasswordDto: ChangePasswordDto) {
         await this.usersService.changePassword(req.user.email, changePasswordDto);
-        return { message: 'Password changed successfully' };
+        return { message: 'Đổi mật khẩu thành công' };
     }
 
     // Keep legacy profile endpoint redirecting to getMe logic if needed, or remove.

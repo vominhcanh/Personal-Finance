@@ -23,6 +23,21 @@ export class CreateWalletDto {
     @IsString()
     currency?: string;
 
+    @ApiProperty({ required: false })
+    @IsOptional()
+    @IsMongoId()
+    bankId?: string;
+
+    @ApiProperty({ required: false })
+    @IsOptional()
+    @IsString()
+    logo?: string;
+
+    @ApiProperty({ required: false })
+    @IsOptional()
+    @IsString()
+    color?: string;
+
     // --- Card Details ---
     @ApiProperty({ required: false })
     @IsOptional()

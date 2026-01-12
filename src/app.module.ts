@@ -13,6 +13,7 @@ import { TransactionsModule } from './transactions/transactions.module';
 import { DebtsModule } from './debts/debts.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
+import { BanksModule } from './banks/banks.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { SchedulerModule } from './scheduler/scheduler.module';
     DebtsModule,
     AnalyticsModule,
     SchedulerModule,
+    BanksModule,
   ],
   controllers: [AppController],
   providers: [

@@ -10,9 +10,14 @@ import { CreateWalletDto } from './dto/create-wallet.dto';
 import { UpdateWalletDto } from './dto/update-wallet.dto';
 import { NotFoundException } from '@nestjs/common';
 
+import { BanksService } from '../banks/banks.service';
+
 @Injectable()
 export class WalletsService {
-    constructor(@InjectModel(Wallet.name) private walletModel: Model<WalletDocument>) { }
+    constructor(
+        @InjectModel(Wallet.name) private walletModel: Model<WalletDocument>,
+        private readonly banksService: BanksService
+    ) { }
 
     async createDefaultWallet(userId: Types.ObjectId) {
         const defaultWallet = new this.walletModel({
@@ -61,7 +66,7 @@ export class WalletsService {
         });
 
         await Promise.all([debitCard.save(), creditCard.save()]);
-        return { message: 'Cards seeded successfully', cards: [debitCard, creditCard] };
+        return { message: 'Khởi tạo thẻ thành công', cards: [debitCard, creditCard] };
     }
 
     async updateBalance(walletId: Types.ObjectId, amount: number, session: any) {
@@ -79,6 +84,21 @@ export class WalletsService {
         // If CREDIT_CARD, usually balance starts at 0 (debt is negative?) or 0 means no debt.
         // Let's assume balance = initialBalance.
         const balance = createWalletDto.initialBalance || 0;
+
+        // Auto-fill details from Bank if bankId is provided
+        if (createWalletDto.bankId) {
+            const bank = await this.banksService.findById(createWalletDto.bankId);
+            if (bank) {
+                // Fill details if not provided by user, or OVERRIDE?
+                // User said "dựa vào phần bank thì mình có thể fill những gì qua" -> Auto fill
+                createWalletDto.logo = bank.logo;
+                // If bankName is not set, use bank.shortName or bank.name
+                if (!createWalletDto.bankName) {
+                    createWalletDto.bankName = bank.shortName || bank.name;
+                }
+                // Determine cardType or others? Not really possible from Bank info alone.
+            }
+        }
 
         const newWallet = new this.walletModel({
             ...createWalletDto,
@@ -117,6 +137,17 @@ export class WalletsService {
         // Warning: Updating initialBalance should probably update current balance difference?
         // For simplicity: Update properties directly. Balance is managed by Transactions usually.
         // But user might want to adjust details.
+
+        // Auto-fill for update as well if bankId is being updated
+        if (updateWalletDto.bankId) {
+            const bank = await this.banksService.findById(updateWalletDto.bankId);
+            if (bank) {
+                updateWalletDto.logo = bank.logo;
+                if (!updateWalletDto.bankName) {
+                    updateWalletDto.bankName = bank.shortName || bank.name;
+                }
+            }
+        }
 
         const updatedWallet = await this.walletModel.findOneAndUpdate(
             { _id: id, userId: new Types.ObjectId(userId) },

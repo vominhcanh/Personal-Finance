@@ -354,6 +354,6 @@ export class TransactionsService {
             count++;
         }
 
-        return { message: `Seeded ${count} transactions for wallet ${walletId}` };
+        return { message: `Đã tạo tự động ${count} giao dịch cho ví ${walletId}` };
     }
 }
