@@ -4,7 +4,45 @@ Tài liệu hướng dẫn sử dụng các API thống kê nâng cao (Analytics
 
 ---
 
-## 1. Biểu Đồ Thu Chi Theo Tháng (Monthly Chart)
+## 1. Tổng Quan Dashboard (Monthly Overview)
+
+**Endpoint:** `GET /v1/analytics/monthly-overview`
+**Params:** `month=YYYY-MM` (Optional, mặc định tháng hiện tại)
+
+API này cung cấp 4 chỉ số quan trọng nhất cho Dashboard, kèm theo % tăng trưởng so với tháng trước.
+
+### Dữ Liệu Trả Về
+
+```json
+{
+  "status": "success",
+  "data": {
+    "stats": {
+      "totalWalletBalance": 125000000, // Tổng tài sản (Số dư các ví)
+      "totalExpense": 5000000, // Chi tiêu trong tháng
+      "netBalance": 2000000, // Dòng tiền thuần (Thu - Chi)
+      "totalWallets": 4 // Tổng số lượng ví
+    },
+    "trends": {
+      "totalWalletBalance": 4.8, // +4.8% so với tháng trước
+      "totalExpense": 2.5, // +2.5% so với tháng trước
+      "netBalance": -1.8, // -1.8% so với tháng trước
+      "totalWallets": 0
+    }
+  }
+}
+```
+
+### 🎨 Logic Hiển Thị
+
+1.  **Total Wallet Balance (Card 1)**: Màu xanh/đen. Hiển thị tổng tiền hiện có. Trend tính theo tài sản ròng tăng/giảm.
+2.  **Total Expense (Card 2)**: Màu đỏ. Hiển thị tổng chi tiêu. Trend dương nghĩa là chi nhiều hơn tháng trước (Cảnh báo).
+3.  **Net Balance (Card 3)**: Hiển thị dòng tiền dư. Nếu dương (hơn 0) hiện màu xanh, âm hiện màu đỏ.
+4.  **Total Wallets (Card 4)**: Hiển thị số lượng ví.
+
+---
+
+## 2. Biểu Đồ Thu Chi Theo Tháng (Monthly Chart)
 
 **Endpoint:** `GET /v1/analytics/transactions-monthly?month=MM-YYYY`
 **Ví dụ:** `/v1/analytics/transactions-monthly?month=01-2026` (Mặc định lấy tháng hiện tại nếu không truyền)

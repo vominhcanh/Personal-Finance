@@ -18,25 +18,100 @@ export class AnalyticsService {
         @InjectModel(Wallet.name) private walletModel: Model<WalletDocument>,
     ) { }
 
-    async getMonthlyOverview(userId: string) {
-        const start = new Date();
-        start.setDate(1);
-        start.setHours(0, 0, 0, 0);
+    async getMonthlyOverview(userId: string, monthStr?: string) {
+        const now = new Date();
+        let targetMonth = now.getMonth();
+        let targetYear = now.getFullYear();
 
-        return this.transactionModel.aggregate([
+        if (monthStr) {
+            const parts = monthStr.split('-');
+            if (parts.length === 2) {
+                targetMonth = parseInt(parts[0]) - 1;
+                targetYear = parseInt(parts[1]);
+            }
+        }
+
+        const startOfMonth = new Date(targetYear, targetMonth, 1);
+        const endOfMonth = new Date(targetYear, targetMonth + 1, 0, 23, 59, 59, 999);
+
+        // 1. STATS CALCULATIONS
+        // A. Total Wallet Balance (Current Snapshot) & Count
+        const wallets = await this.walletModel.find({ userId: new Types.ObjectId(userId) });
+        const totalWalletBalance = wallets.reduce((sum, w) => sum + (w.balance || 0), 0);
+        const totalWallets = wallets.length;
+
+        // B. Monthly Expense & Net Balance (Cash Flow)
+        const currentStatsAgg = await this.transactionModel.aggregate([
             {
                 $match: {
                     userId: new Types.ObjectId(userId),
-                    date: { $gte: start },
-                },
+                    date: { $gte: startOfMonth, $lte: endOfMonth }
+                }
             },
             {
                 $group: {
-                    _id: '$type',
-                    total: { $sum: '$amount' },
-                },
-            },
+                    _id: null,
+                    income: { $sum: { $cond: [{ $eq: ["$type", "INCOME"] }, "$amount", 0] } },
+                    expense: { $sum: { $cond: [{ $eq: ["$type", "EXPENSE"] }, "$amount", 0] } }
+                }
+            }
         ]);
+
+        const currentExpense = currentStatsAgg.length > 0 ? currentStatsAgg[0].expense : 0;
+        const currentIncome = currentStatsAgg.length > 0 ? currentStatsAgg[0].income : 0;
+        const netBalance = currentIncome - currentExpense;
+
+        // 2. TREND CALCULATIONS (Compare with Previous Month)
+        const prevMonthDate = new Date(targetYear, targetMonth - 1, 1);
+        const prevMonthStart = new Date(prevMonthDate.getFullYear(), prevMonthDate.getMonth(), 1);
+        const prevMonthEnd = new Date(prevMonthDate.getFullYear(), prevMonthDate.getMonth() + 1, 0, 23, 59, 59, 999);
+
+        const prevStatsAgg = await this.transactionModel.aggregate([
+            {
+                $match: {
+                    userId: new Types.ObjectId(userId),
+                    date: { $gte: prevMonthStart, $lte: prevMonthEnd }
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    income: { $sum: { $cond: [{ $eq: ["$type", "INCOME"] }, "$amount", 0] } },
+                    expense: { $sum: { $cond: [{ $eq: ["$type", "EXPENSE"] }, "$amount", 0] } }
+                }
+            }
+        ]);
+
+        const prevExpense = prevStatsAgg.length > 0 ? prevStatsAgg[0].expense : 0;
+        const prevIncome = prevStatsAgg.length > 0 ? prevStatsAgg[0].income : 0;
+        const prevNetBalance = prevIncome - prevExpense;
+
+        // For Wallet Balance Trend, we ideally need snapshot history.
+        // Approximation: Current Balance - Net Flow of current month = Start of Month Balance ~ End of Prev Month Balance.
+        // So Prev Balance = Current Balance - (CurrentIncome - CurrentExpense).
+        // This assumes no manual adjustments outside transactions. OK for estimation.
+        const approximatePrevWalletBalance = totalWalletBalance - netBalance;
+
+        // Helper for Trend %
+        const calcTrend = (current: number, previous: number): number => {
+            if (previous === 0) return current === 0 ? 0 : 100;
+            return parseFloat((((current - previous) / Math.abs(previous)) * 100).toFixed(1));
+        };
+
+        return {
+            stats: {
+                totalWalletBalance,
+                totalExpense: currentExpense,
+                netBalance,
+                totalWallets
+            },
+            trends: {
+                totalWalletBalance: calcTrend(totalWalletBalance, approximatePrevWalletBalance),
+                totalExpense: calcTrend(currentExpense, prevExpense),
+                netBalance: calcTrend(netBalance, prevNetBalance),
+                totalWallets: 0 // Wallets count rarely fluctuates significantly month-to-month to show trend
+            }
+        };
     }
 
     async getSpendingWarning(userId: string) {

@@ -13,8 +13,11 @@ export class AnalyticsController {
 
     @Get('monthly-overview')
     @ApiOperation({ summary: 'Get total income, expense, and balance for the current month' })
-    async getMonthlyOverview(@Request() req) {
-        return this.analyticsService.getMonthlyOverview(req.user.userId);
+    async getMonthlyOverview(@Request() req, @Query('month') month?: string) {
+        return {
+            status: 'success',
+            data: await this.analyticsService.getMonthlyOverview(req.user.userId, month)
+        };
     }
 
     @Get('debt-status')
