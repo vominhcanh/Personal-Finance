@@ -1,14 +1,14 @@
 
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectModel, InjectConnection } from '@nestjs/mongoose';
-import { Model, Types, Connection } from 'mongoose';
-import { Transaction, TransactionDocument } from './schemas/transaction.schema';
-import { WalletsService } from '../wallets/wallets.service';
-import { PageOptionsDto } from '../common/dto/page-options.dto';
+import { Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
+import { Connection, Model, Types } from 'mongoose';
 import { PageMetaDto } from '../common/dto/page-meta.dto';
+import { PageOptionsDto } from '../common/dto/page-options.dto';
 import { PageDto } from '../common/dto/page.dto';
+import { WalletsService } from '../wallets/wallets.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
+import { Transaction, TransactionDocument } from './schemas/transaction.schema';
 
 @Injectable()
 export class TransactionsService {
@@ -86,7 +86,7 @@ export class TransactionsService {
         try {
             const oldTransaction = await this.transactionModel.findOne({ _id: id, userId: new Types.ObjectId(userId) }).session(session);
             if (!oldTransaction) {
-                throw new NotFoundException(`Transaction #${id} not found`);
+                throw new UnprocessableEntityException(`Transaction #${id} does not exist or unauthorized`);
             }
 
             // 1. Revert balance of old transaction
@@ -101,7 +101,7 @@ export class TransactionsService {
             ).exec();
 
             if (!updatedTransaction) {
-                throw new NotFoundException(`Transaction #${id} not found`);
+                throw new UnprocessableEntityException(`Transaction #${id} could not be updated`);
             }
 
             // 3. Apply balance of new transaction state
@@ -123,7 +123,7 @@ export class TransactionsService {
         try {
             const transaction = await this.transactionModel.findOne({ _id: id, userId: new Types.ObjectId(userId) }).session(session);
             if (!transaction) {
-                throw new NotFoundException(`Transaction #${id} not found`);
+                throw new UnprocessableEntityException(`Transaction #${id} does not exist or unauthorized`);
             }
 
             await this.revertBalance(transaction, session);

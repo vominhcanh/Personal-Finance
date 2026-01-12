@@ -1,14 +1,13 @@
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Wallet, WalletDocument } from './schemas/wallet.schema';
-import { PageOptionsDto } from '../common/dto/page-options.dto';
 import { PageMetaDto } from '../common/dto/page-meta.dto';
+import { PageOptionsDto } from '../common/dto/page-options.dto';
 import { PageDto } from '../common/dto/page.dto';
 import { CreateWalletDto } from './dto/create-wallet.dto';
 import { UpdateWalletDto } from './dto/update-wallet.dto';
-import { NotFoundException } from '@nestjs/common';
+import { Wallet, WalletDocument } from './schemas/wallet.schema';
 
 import { BanksService } from '../banks/banks.service';
 
@@ -156,7 +155,7 @@ export class WalletsService {
         ).exec();
 
         if (!updatedWallet) {
-            throw new NotFoundException(`Wallet #${id} not found`);
+            throw new UnprocessableEntityException(`Wallet #${id} could not be updated or does not exist`);
         }
         return updatedWallet;
     }
@@ -166,7 +165,7 @@ export class WalletsService {
         // For now, allow delete.
         const deletedWallet = await this.walletModel.findOneAndDelete({ _id: id, userId: new Types.ObjectId(userId) }).exec();
         if (!deletedWallet) {
-            throw new NotFoundException(`Wallet #${id} not found`);
+            throw new UnprocessableEntityException(`Wallet #${id} could not be deleted or does not exist`);
         }
         return deletedWallet;
     }

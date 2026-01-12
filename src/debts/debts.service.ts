@@ -1,14 +1,14 @@
 
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Debt, DebtDocument } from './schemas/debt.schema';
-import { TransactionsService } from '../transactions/transactions.service';
-import { PageOptionsDto } from '../common/dto/page-options.dto';
 import { PageMetaDto } from '../common/dto/page-meta.dto';
+import { PageOptionsDto } from '../common/dto/page-options.dto';
 import { PageDto } from '../common/dto/page.dto';
+import { TransactionsService } from '../transactions/transactions.service';
 import { CreateDebtDto } from './dto/create-debt.dto';
 import { UpdateDebtDto } from './dto/update-debt.dto';
+import { Debt, DebtDocument } from './schemas/debt.schema';
 
 import { DebtInstallment, DebtInstallmentDocument } from './schemas/debt-installment.schema';
 
@@ -99,7 +99,7 @@ export class DebtsService {
             { new: true },
         ).exec();
         if (!updatedDebt) {
-            throw new NotFoundException(`Debt #${id} not found`);
+            throw new UnprocessableEntityException(`Debt #${id} could not be updated or does not exist`);
         }
         return updatedDebt;
     }
@@ -107,7 +107,7 @@ export class DebtsService {
     async remove(id: string, userId: string): Promise<Debt> {
         const deletedDebt = await this.debtModel.findOneAndDelete({ _id: id, userId: new Types.ObjectId(userId) }).exec();
         if (!deletedDebt) {
-            throw new NotFoundException(`Debt #${id} not found`);
+            throw new UnprocessableEntityException(`Debt #${id} could not be deleted or does not exist`);
         }
         // Also cleanup installments
         await this.debtInstallmentModel.deleteMany({ debtId: id });
@@ -119,11 +119,11 @@ export class DebtsService {
         session.startTransaction();
         try {
             const installment = await this.debtInstallmentModel.findById(installmentId).session(session);
-            if (!installment) throw new NotFoundException('Installment not found');
+            if (!installment) throw new UnprocessableEntityException('Installment not found');
             if (installment.status === 'PAID') throw new BadRequestException('Installment already paid');
 
             const debt = await this.debtModel.findOne({ _id: installment.debtId, userId: new Types.ObjectId(userId) }).session(session);
-            if (!debt) throw new NotFoundException('Parent Debt not found');
+            if (!debt) throw new UnprocessableEntityException('Parent Debt not found');
 
             // 1. Create Transaction (Expense or Income based on Debt Type)
             // Note: TransactionsService.create uses its own session which might be tricky with nested sessions.

@@ -1,10 +1,10 @@
 
-import { Controller, Get, Post, Body, Patch, Request, UseGuards, NotFoundException, BadRequestException } from '@nestjs/common';
-import { UsersService } from './users.service';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { Body, Controller, Get, NotFoundException, Patch, Post, Request, UnprocessableEntityException, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { UsersService } from './users.service';
 
 @ApiTags('users')
 @ApiBearerAuth()
@@ -29,7 +29,7 @@ export class UsersController {
     async updateMe(@Request() req, @Body() updateUserDto: UpdateUserDto) {
         const user = await this.usersService.update(req.user.email, updateUserDto);
         if (!user) {
-            throw new NotFoundException('User not found');
+            throw new UnprocessableEntityException('User could not be updated or not found');
         }
         const { passwordHash, ...result } = user.toObject();
         return result;

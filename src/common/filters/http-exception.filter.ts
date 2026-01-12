@@ -1,5 +1,5 @@
 
-import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
+import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
 import { Request, Response } from 'express';
 
 @Catch(HttpException)
@@ -15,14 +15,21 @@ export class HttpExceptionFilter implements ExceptionFilter {
         let errors = null;
 
         if (typeof exceptionResponse === 'object') {
-            // Class-validator often returns { statusCode, message: [], error }
-            // where message is array of validation errors
+
             if (Array.isArray(exceptionResponse.message)) {
                 message = 'Validation Error';
                 errors = exceptionResponse.message;
             } else {
                 message = exceptionResponse.message;
             }
+        }
+
+        // Ensure 404/422 always has a clear message if default is generic
+        if (status === HttpStatus.NOT_FOUND && message === 'Not Found') {
+            message = 'Resource not found';
+        }
+        if (status === HttpStatus.UNPROCESSABLE_ENTITY && message === 'Unprocessable Entity') {
+            message = 'Operation failed';
         }
 
         response

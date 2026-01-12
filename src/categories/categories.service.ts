@@ -1,13 +1,13 @@
 
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Category, CategoryDocument } from './schemas/category.schema';
-import { PageOptionsDto } from '../common/dto/page-options.dto';
 import { PageMetaDto } from '../common/dto/page-meta.dto';
+import { PageOptionsDto } from '../common/dto/page-options.dto';
 import { PageDto } from '../common/dto/page.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
+import { Category, CategoryDocument } from './schemas/category.schema';
 
 @Injectable()
 export class CategoriesService {
@@ -62,7 +62,7 @@ export class CategoriesService {
             { new: true },
         ).exec();
         if (!updatedCategory) {
-            throw new NotFoundException(`Category #${id} not found`);
+            throw new UnprocessableEntityException(`Category #${id} could not be updated or does not exist`);
         }
         return updatedCategory;
     }
@@ -70,7 +70,7 @@ export class CategoriesService {
     async remove(id: string, userId: string): Promise<Category> {
         const deletedCategory = await this.categoryModel.findOneAndDelete({ _id: id, userId: new Types.ObjectId(userId) }).exec();
         if (!deletedCategory) {
-            throw new NotFoundException(`Category #${id} not found`);
+            throw new UnprocessableEntityException(`Category #${id} could not be deleted or does not exist`);
         }
         return deletedCategory;
     }
