@@ -180,15 +180,6 @@ export class DebtsService {
 
             const debt = await this.debtModel.findOne({ _id: installment.debtId, userId: new Types.ObjectId(userId) }).session(session);
             if (!debt) throw new UnprocessableEntityException('Parent Debt not found');
-
-            // 1. Create Transaction (Expense or Income based on Debt Type)
-            // Note: TransactionsService.create uses its own session which might be tricky with nested sessions.
-            // Simplified: Update balances via WalletService directly or assume TransactionsService handles it.
-            // For robustness, we'll assume TransactionsService.create is atomic enough or we pass session if refactored.
-            // Here we just call it. RISK: If Transaction fails, we should abort.
-            // Better: TransactionsService.createWithSession(..., session) but not implemented.
-            // For now, call normal create (it creates its own session, which is "nested transaction" supported in Mongo 4+).
-
             const transactionType = debt.type === 'LOAN' ? 'EXPENSE' : 'INCOME'; // LOAN = I borrow -> Pay back = Expense.
             const installmentIndex = debt.paidMonths + 1;
 
@@ -198,7 +189,7 @@ export class DebtsService {
                 amount: installment.amount,
                 type: transactionType as any,
                 date: new Date(),
-                note: `Pay installment #${installmentIndex} for Debt '${debt.partnerName}' (Due: ${installment.dueDate.toISOString().split('T')[0]})`,
+                note: `Thanh toán khoản vay ${debt.partnerName} kỳ ${installmentIndex}`,
             });
 
             // 2. Update Installment
@@ -214,10 +205,7 @@ export class DebtsService {
             if (debt.paidMonths >= debt.totalMonths || debt.remainingAmount === 0) {
                 debt.status = 'COMPLETED';
             } else {
-                // Generate NEXT Installment
-                // Logic: Find next due date based on current installment's due date + 1 month?
-                // Or based on StartDate + paidMonths?
-                // Ideally StartDate + paidMonths index.
+
                 if (debt.startDate) { // Ensure startDate exists (added to schema)
                     const nextDueDate = new Date(debt.startDate);
                     nextDueDate.setMonth(nextDueDate.getMonth() + debt.paidMonths); // paidMonths is now count of paid. Next is index = paidMonths.
