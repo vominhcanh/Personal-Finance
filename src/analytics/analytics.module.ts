@@ -2,6 +2,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { DebtsModule } from '../debts/debts.module';
+import { DebtInstallment, DebtInstallmentSchema } from '../debts/schemas/debt-installment.schema';
 import { Debt, DebtSchema } from '../debts/schemas/debt.schema';
 import { Transaction, TransactionSchema } from '../transactions/schemas/transaction.schema';
 import { TransactionsModule } from '../transactions/transactions.module';
@@ -16,7 +17,8 @@ import { AnalyticsService } from './analytics.service';
             { name: Transaction.name, schema: TransactionSchema },
             { name: Debt.name, schema: DebtSchema },
             { name: User.name, schema: UserSchema },
-            { name: Wallet.name, schema: WalletSchema }
+            { name: Wallet.name, schema: WalletSchema },
+            { name: DebtInstallment.name, schema: DebtInstallmentSchema },
         ]),
         TransactionsModule,
         DebtsModule

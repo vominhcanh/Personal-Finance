@@ -70,3 +70,75 @@ Nếu không có dữ liệu, mảng sẽ rỗng.
 ### 🎨 Gợi Ý Hiển Thị
 
 - Hiển thị một thẻ nhỏ ở mục Thẻ Tín Dụng: "Tổng phí đã trả: 150.000đ".
+
+---
+
+## 3. Cảnh Báo Chi Tiêu (Spending Warning)
+
+**Endpoint:** `GET /v1/analytics/spending-warning`
+
+API trả về phân tích chi tiết về tình hình chi tiêu so với hạn mức, bao gồm dự báo và lời khuyên.
+
+### Dữ Liệu Trả Về (Mới Update)
+
+```json
+{
+  "currentSpending": 5500000, // Đã chi tiêu thực tế
+  "monthlyLimit": 20000000, // Hạn mức
+  "percentUsed": 27.5, // % Đã dùng
+  "alertLevel": "SAFE", // Mức độ: SAFE | WARNING | URGENT | OVERSPENT | NO_LIMIT
+
+  // --- Các chỉ số nâng cao ---
+  "projectedSpending": 21000000, // Dự báo chi tiêu cuối tháng (Dựa trên trung bình ngày + Hóa đơn cố định sắp tới)
+  "spendingTrend": 12.5, // Xu hướng: +12.5% so với cùng kỳ tháng trước
+  "dailyAverage": 183000, // Trung bình chi mỗi ngày (Current Spend / Current Day)
+  "safeDailySpend": 450000, // Số tiền NÊN chi mỗi ngày còn lại để không lố (Đã trừ hóa đơn sắp tới)
+
+  "topCategory": {
+    // Mục tiêu tốn tiền nhất
+    "name": "Ăn uống",
+    "amount": 3000000,
+    "percent": 54
+  },
+
+  "adviceMessage": "Dự báo bạn sẽ vượt hạn mức khoảng 1.000.000đ. Hãy tiết kiệm chi tiêu ở mục Ăn uống."
+}
+```
+
+### 🎨 Gợi Ý Hiển Thị
+
+1.  **Doughnut Chart**: Hiển thị `% Used`. Màu sắc thay đổi theo `alertLevel` (Xanh -> Vàng -> Đỏ).
+2.  **Thẻ Dự Báo**: "Dự báo cuối tháng: 21.000.000đ" (So sánh với Limit).
+3.  **Lời Khuyên (AI Advice)**: Hiển thị `adviceMessage` trong khung nổi bật bên dưới biểu đồ.
+4.  **Top Category**: Hiển thị icon và tên danh mục tốn kém nhất.
+
+---
+
+## 4. Xu Hướng Thu Chi (Trend Analysis)
+
+**Endpoint:** `GET /v1/analytics/trend?period=6` (Mặc định 6 tháng)
+
+Trả về dữ liệu so sánh Thu nhập vs Chi tiêu qua các tháng.
+
+```json
+[
+  { "month": "2023-08", "income": 50000000, "expense": 30000000 },
+  { "month": "2023-09", "income": 52000000, "expense": 25000000 }
+]
+```
+
+---
+
+## 5. Phân Tích Danh Mục (Category Breakdown)
+
+**Endpoint:** `GET /v1/analytics/category-breakdown?month=MM-YYYY`
+
+Trả về danh sách danh mục chi tiêu sắp xếp giảm dần theo số tiền. Dùng để vẽ **Pie Chart**.
+
+```json
+[
+  { "categoryName": "Ăn uống", "totalAmount": 5000000 },
+  { "categoryName": "Thuê nhà", "totalAmount": 4000000 },
+  { "categoryName": "Di chuyển", "totalAmount": 1000000 }
+]
+```

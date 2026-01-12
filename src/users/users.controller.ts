@@ -3,6 +3,7 @@ import { Body, Controller, Get, NotFoundException, Patch, Post, Request, Unproce
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { UpdateLimitDto } from './dto/update-limit.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
 
@@ -40,6 +41,19 @@ export class UsersController {
     async changePassword(@Request() req, @Body() changePasswordDto: ChangePasswordDto) {
         await this.usersService.changePassword(req.user.email, changePasswordDto);
         return { message: 'Đổi mật khẩu thành công' };
+    }
+
+    @Patch('monthly-limit')
+    @ApiOperation({ summary: 'Update monthly spending limit' })
+    async updateMonthlyLimit(@Request() req, @Body() payload: UpdateLimitDto) {
+        const user = await this.usersService.updateMonthlyLimit(req.user.email, payload.monthlyLimit);
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+        return {
+            message: 'Cập nhật hạn mức thành công',
+            monthlyLimit: user.monthlyLimit
+        };
     }
 
     // Keep legacy profile endpoint redirecting to getMe logic if needed, or remove.

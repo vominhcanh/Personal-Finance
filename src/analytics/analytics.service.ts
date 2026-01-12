@@ -2,6 +2,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { DebtInstallment, DebtInstallmentDocument } from '../debts/schemas/debt-installment.schema';
 import { Debt, DebtDocument } from '../debts/schemas/debt.schema';
 import { Transaction, TransactionDocument } from '../transactions/schemas/transaction.schema';
 import { User, UserDocument } from '../users/schemas/user.schema';
@@ -12,6 +13,7 @@ export class AnalyticsService {
     constructor(
         @InjectModel(Transaction.name) private transactionModel: Model<TransactionDocument>,
         @InjectModel(Debt.name) private debtModel: Model<DebtDocument>,
+        @InjectModel(DebtInstallment.name) private debtInstallmentModel: Model<DebtInstallmentDocument>,
         @InjectModel(User.name) private userModel: Model<UserDocument>,
         @InjectModel(Wallet.name) private walletModel: Model<WalletDocument>,
     ) { }
@@ -42,18 +44,29 @@ export class AnalyticsService {
         if (!user) throw new NotFoundException('User not found');
 
         const monthlyLimit = user.monthlyLimit || 0;
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth(); // 0-11
+        const currentDay = now.getDate();
+        const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+        const daysRemaining = daysInMonth - currentDay;
 
-        const start = new Date();
-        start.setDate(1);
-        start.setHours(0, 0, 0, 0);
+        // Date Ranges
+        const startOfMonth = new Date(currentYear, currentMonth, 1);
+        const endOfMonth = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999);
 
-        // Calculate total Expense
-        const expenseAgg = await this.transactionModel.aggregate([
+        // 1. Current Spending (Total Expense this month)
+        // STRICT FILTER: Exclude Debt Repayments, Refinance, Credit Card Payments.
+        // User wants only "Consumption" spending (Food, Shopping, etc.)
+
+        const expenseStats = await this.transactionModel.aggregate([
             {
                 $match: {
                     userId: new Types.ObjectId(userId),
                     type: 'EXPENSE',
-                    date: { $gte: start }
+                    date: { $gte: startOfMonth, $lte: typeof now === 'string' ? new Date(now) : now },
+                    // Exclude Notes containing keywords
+                    note: { $not: { $regex: /Thanh toán khoản vay|Đáo hạn|Refinance/i } }
                 }
             },
             {
@@ -64,23 +77,106 @@ export class AnalyticsService {
             }
         ]);
 
-        const currentSpending = expenseAgg.length > 0 ? expenseAgg[0].total : 0;
-        let percentUsed = 0;
-        if (monthlyLimit > 0) {
-            percentUsed = Math.round((currentSpending / monthlyLimit) * 100);
+        // This is now "Consumption Spending"
+        const currentSpending = expenseStats.length > 0 ? expenseStats[0].total : 0;
+
+        // 2. Spending Trend (Same period last month)
+        const lastMonthStart = new Date(currentYear, currentMonth - 1, 1);
+        const lastMonthSameDay = new Date(currentYear, currentMonth - 1, currentDay, 23, 59, 59);
+
+        const lastMonthSpendingAgg = await this.transactionModel.aggregate([
+            {
+                $match: {
+                    userId: new Types.ObjectId(userId),
+                    type: 'EXPENSE',
+                    date: { $gte: lastMonthStart, $lte: lastMonthSameDay },
+                    note: { $not: { $regex: /Thanh toán khoản vay|Đáo hạn|Refinance/i } } // Apply same filter
+                }
+            },
+            { $group: { _id: null, total: { $sum: '$amount' } } }
+        ]);
+        const lastMonthSpending = lastMonthSpendingAgg.length > 0 ? lastMonthSpendingAgg[0].total : 0;
+
+        let spendingTrend = 0;
+        if (lastMonthSpending > 0) {
+            spendingTrend = parseFloat((((currentSpending - lastMonthSpending) / lastMonthSpending) * 100).toFixed(1));
+        } else if (currentSpending > 0) {
+            spendingTrend = 100; // 100% increase if last month was 0
         }
 
+        // 3. Upcoming Fixed Payments (REMOVED from Projection)
+        // User requested to distinct "Consumption" vs "Debts".
+        // We will NOT add upcoming debts to the "Consumption Projection".
+
+        // 4. Calculations with REFINED Logic
+        const dailyAverage = currentDay > 0 ? Math.round(currentSpending / currentDay) : 0;
+
+        // Projected Spending = Current Consumption + (DailyAvg * DaysRemaining)
+        const projectedSpending = Math.round(currentSpending + (dailyAverage * daysRemaining));
+
+        // Safe Daily Spend
+        // (Limit - Current) / DaysRemaining
+        // Note: Unless 'Limit' is also adjusted for Debts?
+        // We assume 'monthlyLimit' here is the "Consumption Budget".
+        const disposableBudget = monthlyLimit - currentSpending;
+        const safeDailySpend = daysRemaining > 0 ? Math.max(0, Math.round(disposableBudget / daysRemaining)) : 0;
+
+        // 5. Top Category
+        const topCategoryAgg = await this.transactionModel.aggregate([
+            { $match: { userId: new Types.ObjectId(userId), type: 'EXPENSE', date: { $gte: startOfMonth, $lte: now } } },
+            { $group: { _id: '$categoryId', total: { $sum: '$amount' } } },
+            { $sort: { total: -1 } },
+            { $limit: 1 },
+            { $lookup: { from: 'categories', localField: '_id', foreignField: '_id', as: 'cat' } },
+            { $unwind: { path: '$cat', preserveNullAndEmptyArrays: true } }
+        ]);
+
+        let topCategory: { name: string; amount: number; percent: number } | null = null;
+        if (topCategoryAgg.length > 0) {
+            const topItem = topCategoryAgg[0];
+            topCategory = {
+                name: topItem.cat ? topItem.cat.name : 'Khác',
+                amount: topItem.total,
+                percent: currentSpending > 0 ? Math.round((topItem.total / currentSpending) * 100) : 0
+            };
+        }
+
+        // 6. Percent Used & Alert
+        let percentUsed = 0;
         let alertLevel = 'SAFE';
         if (monthlyLimit > 0) {
+            percentUsed = parseFloat(((currentSpending / monthlyLimit) * 100).toFixed(1));
             if (percentUsed >= 100) alertLevel = 'OVERSPENT';
-            else if (percentUsed >= 80) alertLevel = 'WARNING';
+            else if (percentUsed >= 85) alertLevel = 'URGENT';
+            else if (percentUsed >= 70) alertLevel = 'WARNING';
+        } else {
+            alertLevel = 'NO_LIMIT';
+        }
+
+        // 7. Advice Message
+        let adviceMessage = "Bạn đang chi tiêu hợp lý. Hãy duy trì nhé!";
+        if (monthlyLimit === 0) {
+            adviceMessage = "Bạn chưa đặt hạn mức tháng. Hãy thiết lập để quản lý chi tiêu hiệu quả hơn.";
+        } else if (currentSpending > monthlyLimit) {
+            adviceMessage = `Bạn đã vượt hạn mức ${percentUsed}%. Hãy rà soát lại các khoản chi ${topCategory ? `đặc biệt là mục ${topCategory.name}` : ''}.`;
+        } else if (projectedSpending > monthlyLimit) {
+            const diff = projectedSpending - monthlyLimit;
+            adviceMessage = `Dư báo bạn sẽ vượt hạn mức khoảng ${diff.toLocaleString('vi-VN')}đ. Hãy tiết kiệm chi tiêu ${topCategory ? `ở mục ${topCategory.name}` : ''}.`;
+        } else if (spendingTrend > 20) {
+            adviceMessage = `Bạn đang chi tiêu nhiều hơn ${spendingTrend}% so với cùng kỳ tháng trước. Hãy chú ý nhé.`;
         }
 
         return {
             currentSpending,
             monthlyLimit,
             percentUsed,
-            alertLevel
+            alertLevel,
+            projectedSpending,
+            spendingTrend,
+            dailyAverage,
+            safeDailySpend,
+            topCategory,
+            adviceMessage
         };
     }
 
@@ -217,48 +313,63 @@ export class AnalyticsService {
         // Schema: @Prop() paymentDate: number;
         // So logic is SAME as Credit Card.
 
+        // 2. Loans (Debts): Check upcoming payment based on PENDING Installments
         const debts = await this.debtModel.find({
             userId: new Types.ObjectId(userId),
             status: 'ONGOING'
         });
 
         const loansDue: any[] = [];
+        const debtIds = debts.map(d => d._id);
 
-        for (const debt of debts) {
-            if (debt.paymentDate) {
-                let nextDue = new Date(currentYear, currentMonth, debt.paymentDate);
-                if (nextDue < today) {
-                    nextDue = new Date(currentYear, currentMonth + 1, debt.paymentDate);
-                }
+        if (debtIds.length > 0) {
+            // Find PENDING installments for these debts that are due soon?
+            // Or just find the NEXT PENDING installment for each debt.
+            // User wants: "thông báo trước 10 ngày".
+            // So we filter those with diffDays <= 10.
 
-                const diffTime = nextDue.getTime() - today.getTime();
+            // Strategy: Get ALL pending installments for these debts, sort by date.
+            // Ideally we only want the *earliest* pending per debt?
+            // Since we only create ONE pending installment per debt (based on new logic),
+            // we can essentially fetch all PENDING installments.
+
+            const pendingInstallments = await this.debtInstallmentModel.find({
+                debtId: { $in: debtIds },
+                status: 'PENDING'
+            }).populate('debtId', 'partnerName totalMonths paidMonths remainingAmount'); // Populate debt info
+
+            for (const installment of pendingInstallments) {
+                const dueDate = new Date(installment.dueDate);
+                const diffTime = dueDate.getTime() - today.getTime();
                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-                if (diffDays >= 0 && diffDays <= 10) {
+                // Show if within 10 days (or overdue?)
+                // User says: "bắt đầu thông báo kỳ mới trước 10 ngày".
+                // Also include OVERDUE items? usually yes.
+                if (diffDays <= 10) {
                     let alertLevel = 'YELLOW';
                     if (diffDays <= 3) alertLevel = 'RED';
                     else if (diffDays <= 7) alertLevel = 'ORANGE';
 
-                    const isInstallment = debt.isInstallment;
-                    let installmentInfo: any = undefined;
+                    const debt = installment.debtId as any;
 
-                    if (isInstallment && debt.totalMonths) {
-                        const currentPeriod = (debt.paidMonths || 0) + 1;
-                        installmentInfo = {
-                            current: currentPeriod,
-                            total: debt.totalMonths,
-                            display: `${currentPeriod}/${debt.totalMonths}`
-                        };
-                    }
+                    // Construct Installment Info "X/Y"
+                    const currentPeriod = (debt.paidMonths || 0) + 1;
+                    const installmentInfo = {
+                        current: currentPeriod,
+                        total: debt.totalMonths,
+                        display: `${currentPeriod}/${debt.totalMonths}`
+                    };
 
                     loansDue.push({
                         type: 'LOAN',
                         name: debt.partnerName,
-                        amount: debt.monthlyPayment || 0,
-                        dueDate: nextDue,
+                        amount: installment.amount,
+                        dueDate: dueDate,
                         daysRemaining: diffDays,
                         alertLevel,
                         debtId: debt._id,
+                        installmentId: installment._id, // Add installmentId for payment action
                         installment: installmentInfo
                     });
                 }

@@ -68,29 +68,39 @@ export class WalletsService {
 
         // 2. REFINANCE: Create Expense on the Card (Fee)
         if (payload.action === PayStatementAction.REFINANCE) {
-            if (!payload.refinanceFeeRate) {
-                throw new UnprocessableEntityException('Cần cung cấp tỷ lệ phí đáo hạn (refinanceFeeRate)');
-            }
-            // Fee = Outstanding * Rate / 100? Or Amount * Rate / 100?
-            // "phí đáo thẻ sẽ dựa vào phí % của thẻ đó" -> Or payload fee rate?
-            // "cho phép thanh toán full sao kê thẻ hoặc đáo thẻ và phí đáo thẻ sẽ dựa vào phí % của thẻ đó"
-            // Usually calculated on the "Due Amount" (statement balance).
-            // Let's assume passed 'amount' is the amount being refinanced.
-            const fee = Math.round(payload.amount * payload.refinanceFeeRate / 100);
+            // Refinance Logic:
+            // 1. "Pay" the card (technically someone else pays it). We record this as INCOME/TRANSFER to Card to clear "current" debt view.
+            // 2. "Swipe" the card again (Withdrawal) for Amount + Fee. This is EXPENSE on Card.
+            // Result: Outstanding Balance increases by Fee (Net = -Amount + (Amount + Fee) = +Fee).
+            // This reflects reality: You owe more now.
 
-            return this.transactionsService.create(userId, {
-                walletId: payload.sourceWalletId, // Usually you pay fee via Bank Transfer? Or Cash?
-                // "nguồn tiền" -> passed sourceWalletId.
-                amount: fee,
-                type: 'EXPENSE',
+            const feeAmount = (payload.amount * (payload.refinanceFeeRate || 0)) / 100;
+            const totalNewDebt = payload.amount + feeAmount;
+
+            // Transaction 1: Payment (Clear current cycle)
+            // Source? Usually Cash/Bank payment to the Service Provider?
+            // Or just "Virtual" payment.
+            // Let's assume User treats this as an adjustment. We create an INCOME to the Card.
+            await this.transactionsService.create(userId, {
+                walletId: walletId,
+                amount: payload.amount,
+                type: 'INCOME', // Reduces Outstanding Balance
                 date: new Date(),
-                categoryId: new Types.ObjectId(), // Fake category for fee
-                note: `Phí đáo thẻ tín dụng ${wallet.name}`,
-                // For Refinance, does the debt reset?
-                // "Bản chất là nợ dời sang tháng sau".
-                // We do NOT pay off the debt on system. We just record the Fee.
-                // The debt remains on the card.
-            } as any);
+                note: `Đáo hạn: Thanh toán dư nợ`,
+                categoryId: new Types.ObjectId().toString(), // Todd: Need default category
+            });
+
+            // Transaction 2: New Debt (Amount + Fee)
+            await this.transactionsService.create(userId, {
+                walletId: walletId,
+                amount: totalNewDebt,
+                type: 'EXPENSE', // Increases Outstanding Balance
+                date: new Date(),
+                note: `Đáo hạn: Rút tiền + Phí (${payload.refinanceFeeRate}%)`,
+                categoryId: new Types.ObjectId().toString(),
+            });
+
+            return { message: 'Refinance processed', fee: feeAmount };
         }
     }
 

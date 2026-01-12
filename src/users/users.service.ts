@@ -1,12 +1,11 @@
 
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { User, UserDocument } from './schemas/user.schema';
 import * as bcrypt from 'bcryptjs';
-import { UpdateUserDto } from './dto/update-user.dto';
+import { Model } from 'mongoose';
 import { ChangePasswordDto } from './dto/change-password.dto';
-import { BadRequestException } from '@nestjs/common';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { User, UserDocument } from './schemas/user.schema';
 
 @Injectable()
 export class UsersService {
@@ -35,6 +34,10 @@ export class UsersService {
         const newPasswordHash = await bcrypt.hash(changePasswordDto.newPassword, 10);
         user.passwordHash = newPasswordHash;
         await user.save();
+    }
+
+    async updateMonthlyLimit(email: string, monthlyLimit: number): Promise<UserDocument | null> {
+        return this.userModel.findOneAndUpdate({ email }, { monthlyLimit }, { new: true }).exec();
     }
 
     async findOne(email: string): Promise<UserDocument | null> {
