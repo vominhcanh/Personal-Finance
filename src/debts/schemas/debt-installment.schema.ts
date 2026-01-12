@@ -18,6 +18,9 @@ export class DebtInstallment {
     @Prop({ required: true, enum: ['PENDING', 'PAID', 'OVERDUE'], default: 'PENDING' })
     status: string;
 
+    @Prop({ type: Types.ObjectId, ref: 'Wallet' })
+    walletId: Types.ObjectId;
+
     @Prop()
     paidAt: Date;
 }

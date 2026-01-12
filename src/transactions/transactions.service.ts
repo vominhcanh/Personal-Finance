@@ -1,5 +1,5 @@
 
-import { Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, UnprocessableEntityException, forwardRef } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { Connection, Model, Types } from 'mongoose';
 import { PageMetaDto } from '../common/dto/page-meta.dto';
@@ -14,6 +14,7 @@ import { Transaction, TransactionDocument } from './schemas/transaction.schema';
 export class TransactionsService {
     constructor(
         @InjectModel(Transaction.name) private transactionModel: Model<TransactionDocument>,
+        @Inject(forwardRef(() => WalletsService))
         private walletsService: WalletsService,
         @InjectConnection() private connection: Connection,
     ) { }
@@ -142,6 +143,28 @@ export class TransactionsService {
     // Helper: Apply balance change
     private async applyBalance(transaction: any, session: any) {
         const amount = transaction.amount;
+        const wallet = await this.walletsService.findById(transaction.walletId.toString(), session);
+
+        // Credit Card Logic: Update Outstanding Balance
+        if (wallet && wallet.type === 'CREDIT_CARD') {
+            if (transaction.type === 'INCOME') {
+                await this.walletsService.updateOutstandingBalance(transaction.walletId, -amount, session);
+            } else if (transaction.type === 'EXPENSE') {
+                await this.walletsService.updateOutstandingBalance(transaction.walletId, amount, session);
+            } else if (transaction.type === 'TRANSFER') {
+                await this.walletsService.updateOutstandingBalance(transaction.walletId, amount, session);
+            }
+        }
+
+        // Target Wallet Logic (Transfer)
+        if (transaction.type === 'TRANSFER' && transaction.targetWalletId) {
+            const targetWallet = await this.walletsService.findById(transaction.targetWalletId.toString(), session);
+            if (targetWallet && targetWallet.type === 'CREDIT_CARD') {
+                await this.walletsService.updateOutstandingBalance(transaction.targetWalletId, -amount, session);
+            }
+        }
+
+        // Standard Balance Logic
         if (transaction.type === 'INCOME') {
             await this.walletsService.updateBalance(transaction.walletId, amount, session);
         } else if (transaction.type === 'EXPENSE') {
@@ -157,6 +180,28 @@ export class TransactionsService {
     // Helper: Revert balance change
     private async revertBalance(transaction: any, session: any) {
         const amount = transaction.amount;
+        const wallet = await this.walletsService.findById(transaction.walletId.toString(), session);
+
+        // Credit Card Logic: Revert Outstanding Balance
+        if (wallet && wallet.type === 'CREDIT_CARD') {
+            if (transaction.type === 'INCOME') {
+                await this.walletsService.updateOutstandingBalance(transaction.walletId, amount, session);
+            } else if (transaction.type === 'EXPENSE') {
+                await this.walletsService.updateOutstandingBalance(transaction.walletId, -amount, session);
+            } else if (transaction.type === 'TRANSFER') {
+                await this.walletsService.updateOutstandingBalance(transaction.walletId, -amount, session);
+            }
+        }
+
+        // Target Wallet Logic (Transfer)
+        if (transaction.type === 'TRANSFER' && transaction.targetWalletId) {
+            const targetWallet = await this.walletsService.findById(transaction.targetWalletId.toString(), session);
+            if (targetWallet && targetWallet.type === 'CREDIT_CARD') {
+                await this.walletsService.updateOutstandingBalance(transaction.targetWalletId, amount, session);
+            }
+        }
+
+        // Standard Balance Logic
         if (transaction.type === 'INCOME') {
             await this.walletsService.updateBalance(transaction.walletId, -amount, session);
         } else if (transaction.type === 'EXPENSE') {

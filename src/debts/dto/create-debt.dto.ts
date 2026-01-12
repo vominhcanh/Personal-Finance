@@ -1,6 +1,6 @@
 
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, IsEnum, IsNumber, IsOptional, IsMongoId, IsDateString, IsBoolean } from 'class-validator';
+import { IsDateString, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class CreateDebtDto {
     @ApiProperty()
@@ -24,10 +24,10 @@ export class CreateDebtDto {
     status?: string;
 
     // Installment Details
-    @ApiProperty({ default: false })
+    @ApiProperty({ default: 0 })
     @ApiProperty()
-    @IsBoolean()
-    isInstallment: boolean;
+    @IsNumber()
+    isInstallment: number;
 
     @ApiProperty({ required: false })
     @IsNumber()

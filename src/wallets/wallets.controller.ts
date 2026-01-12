@@ -1,13 +1,14 @@
 
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request, Query } from '@nestjs/common';
-import { WalletsService } from './wallets.service';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Request, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PageOptionsDto } from '../common/dto/page-options.dto';
 import { PageDto } from '../common/dto/page.dto';
-import { Wallet } from './schemas/wallet.schema';
 import { CreateWalletDto } from './dto/create-wallet.dto';
+import { PayStatementDto } from './dto/pay-statement.dto';
 import { UpdateWalletDto } from './dto/update-wallet.dto';
+import { Wallet } from './schemas/wallet.schema';
+import { WalletsService } from './wallets.service';
 
 @ApiTags('wallets')
 @ApiBearerAuth()
@@ -40,6 +41,12 @@ export class WalletsController {
     @Patch(':id')
     update(@Request() req, @Param('id') id: string, @Body() updateWalletDto: UpdateWalletDto) {
         return this.walletsService.update(id, req.user.userId, updateWalletDto);
+    }
+
+    @Post(':id/pay-statement')
+    @ApiOperation({ summary: 'Pay Credit Card functionality (Pay Full or Refinance)' })
+    payStatement(@Request() req, @Param('id') id: string, @Body() payload: PayStatementDto) {
+        return this.walletsService.payStatement(req.user.userId, id, payload);
     }
 
     @Delete(':id')

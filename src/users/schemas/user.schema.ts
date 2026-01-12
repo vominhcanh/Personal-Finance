@@ -23,6 +23,9 @@ export class User {
 
     @Prop({ default: Date.now })
     createdAt: Date;
+
+    @Prop({ default: 0 })
+    monthlyLimit: number; // Hạn mức chi tiêu hàng tháng
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

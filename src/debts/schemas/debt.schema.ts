@@ -25,8 +25,11 @@ export class Debt {
     status: string;
 
     // Installment Config
-    @Prop({ default: false })
-    isInstallment: boolean;
+    @Prop({ default: 0 })
+    isInstallment: number; // 1: Installment, 0: One-time
+
+    @Prop()
+    startDate: Date;
 
     @Prop()
     totalMonths: number;

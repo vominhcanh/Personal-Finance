@@ -62,6 +62,9 @@ export class Wallet {
     @Prop()
     paymentDueDate: number;
 
+    @Prop({ default: 0 })
+    outstandingBalance: number; // Dư nợ thẻ tín dụng
+
     @Prop()
     interestRate: number; // %/year
 

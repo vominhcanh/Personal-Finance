@@ -24,33 +24,75 @@ export class DebtsService {
         const session = await this.debtModel.db.startSession();
         session.startTransaction();
         try {
-            const remainingAmount = createDebtDto.totalAmount;
-            const newDebt = new this.debtModel({
-                ...createDebtDto,
-                userId: new Types.ObjectId(userId),
-                remainingAmount,
-                status: createDebtDto.status || 'ONGOING',
-                paidMonths: 0,
-            });
-            await newDebt.save({ session });
+            let remainingAmount = createDebtDto.totalAmount;
+            let paidMonths = 0;
+            const installments: any[] = [];
 
-            // Generate Installments if enabled
-            if (createDebtDto.isInstallment && createDebtDto.totalMonths && createDebtDto.startDate) {
-                const installments: any[] = [];
+            // Installment Logic Calculation BEFORE saving Debt
+            if (createDebtDto.isInstallment === 1 && createDebtDto.totalMonths && createDebtDto.startDate) {
                 const startDate = new Date(createDebtDto.startDate);
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                const monthlyPayment = createDebtDto.monthlyPayment || (createDebtDto.totalAmount / createDebtDto.totalMonths);
+
+                // Iterate through Total Months to categorize Past vs Future
+                // BUT user wants: "sinh ra lịch sử... và thông tin của kỳ kế tiếp"
+                // So we loop until we find the FIRST future/current installment?
+                // Or loop all? User said "bỏ việc map ra danh sách kỳ vay".
+                // Logic:
+                // 1. Identify "Past" periods (Due Date < Today). Create as PAID history.
+                // 2. Identify "Current/Next" period (First Due Date >= Today). Create as PENDING.
+                // 3. Stop. Do not create further future periods.
 
                 for (let i = 0; i < createDebtDto.totalMonths; i++) {
                     const dueDate = new Date(startDate);
                     dueDate.setMonth(startDate.getMonth() + i);
 
-                    installments.push({
-                        debtId: newDebt._id,
-                        dueDate,
-                        amount: createDebtDto.monthlyPayment || (createDebtDto.totalAmount / createDebtDto.totalMonths),
-                        status: 'PENDING'
-                    });
+                    // Reset time to end of day or check strictly date?
+                    // Let's assume dueDate is compared to today.
+
+                    if (dueDate < today) {
+                        // PAST -> History (PAID)
+                        // Assume paid? Yes: "những kỳ bắt đầu đó thì sẽ hoàn thành thanh toán rồi"
+                        installments.push({
+                            // debtId will be assigned later
+                            dueDate,
+                            amount: monthlyPayment,
+                            status: 'PAID',
+                            paidAt: dueDate, // Assume paid on due date
+                        });
+                        paidMonths++;
+                        remainingAmount -= monthlyPayment;
+                    } else {
+                        // CURRENT/FUTURE -> Create ONE Pending Installment
+                        installments.push({
+                            dueDate,
+                            amount: monthlyPayment,
+                            status: 'PENDING'
+                        });
+                        // Stop loop. "thông tin kỳ kế tiếp là được"
+                        break;
+                    }
                 }
-                await this.debtInstallmentModel.create(installments, { session, ordered: true });
+
+                // Safety clamp
+                if (remainingAmount < 0) remainingAmount = 0;
+            }
+
+            const newDebt = new this.debtModel({
+                ...createDebtDto,
+                userId: new Types.ObjectId(userId),
+                remainingAmount,
+                status: remainingAmount <= 0 ? 'COMPLETED' : (createDebtDto.status || 'ONGOING'),
+                paidMonths,
+            });
+            await newDebt.save({ session });
+
+            // Save Generated Installments
+            if (installments.length > 0) {
+                const installmentsWithId = installments.map(i => ({ ...i, debtId: newDebt._id }));
+                await this.debtInstallmentModel.create(installmentsWithId, { session, ordered: true });
             }
 
             await session.commitTransaction();
@@ -87,12 +129,26 @@ export class DebtsService {
         }
 
         // Fetch Installments
-        const installments = await this.debtInstallmentModel.find({ debtId: debt._id }).sort({ dueDate: 1 }).exec();
+        const installments = await this.debtInstallmentModel.find({ debtId: debt._id })
+            .sort({ dueDate: 1 })
+            .populate('walletId', 'name type color logo') // Populate key fields
+            .exec();
 
         return { ...debt.toObject(), installments };
     }
 
     async update(id: string, userId: string, updateDebtDto: UpdateDebtDto): Promise<Debt> {
+        // Prevent updating critical fields for installments to avoid logic break
+        if (updateDebtDto.isInstallment !== undefined || updateDebtDto.totalMonths !== undefined || updateDebtDto.startDate) {
+            const existingDebt = await this.debtModel.findOne({ _id: id, userId: new Types.ObjectId(userId) });
+            if (existingDebt && existingDebt.isInstallment === 1) {
+                // If it's an installment debt, forbid changing structure
+                if (updateDebtDto.totalMonths || updateDebtDto.startDate || updateDebtDto.isInstallment === 0) {
+                    throw new BadRequestException('Cannot modify installment configuration (Total Months, Start Date, Type) for active debts.');
+                }
+            }
+        }
+
         const updatedDebt = await this.debtModel.findOneAndUpdate(
             { _id: id, userId: new Types.ObjectId(userId) },
             updateDebtDto,
@@ -148,14 +204,33 @@ export class DebtsService {
             // 2. Update Installment
             installment.status = 'PAID';
             installment.paidAt = new Date();
+            installment.walletId = new Types.ObjectId(walletId); // Record the wallet used
             await installment.save({ session });
 
             // 3. Update Parent Debt
             debt.paidMonths += 1;
             debt.remainingAmount -= installment.amount;
             if (debt.remainingAmount <= 0) debt.remainingAmount = 0;
-            if (debt.remainingAmount === 0 && debt.paidMonths >= debt.totalMonths) {
+            if (debt.paidMonths >= debt.totalMonths || debt.remainingAmount === 0) {
                 debt.status = 'COMPLETED';
+            } else {
+                // Generate NEXT Installment
+                // Logic: Find next due date based on current installment's due date + 1 month?
+                // Or based on StartDate + paidMonths?
+                // Ideally StartDate + paidMonths index.
+                if (debt.startDate) { // Ensure startDate exists (added to schema)
+                    const nextDueDate = new Date(debt.startDate);
+                    nextDueDate.setMonth(nextDueDate.getMonth() + debt.paidMonths); // paidMonths is now count of paid. Next is index = paidMonths.
+
+                    const monthlyPayment = debt.monthlyPayment || (debt.totalAmount / debt.totalMonths); // Recalculate or use stored? Stored better.
+
+                    await this.debtInstallmentModel.create([{
+                        debtId: debt._id,
+                        dueDate: nextDueDate,
+                        amount: debt.monthlyPayment || monthlyPayment,
+                        status: 'PENDING'
+                    }], { session });
+                }
             }
             await debt.save({ session });
 
