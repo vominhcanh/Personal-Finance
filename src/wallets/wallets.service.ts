@@ -182,9 +182,16 @@ export class WalletsService {
 
     async create(userId: string, createWalletDto: CreateWalletDto): Promise<Wallet> {
         // If type is not CREDIT_CARD, balance = initialBalance
-        // If CREDIT_CARD, usually balance starts at 0 (debt is negative?) or 0 means no debt.
-        // Let's assume balance = initialBalance.
-        const balance = createWalletDto.initialBalance || 0;
+        let balance = createWalletDto.initialBalance || 0;
+        let outstandingBalance = 0;
+
+        if (createWalletDto.type === 'CREDIT_CARD') {
+            const limit = createWalletDto.creditLimit || 0;
+            const debt = createWalletDto.initialDebt || 0;
+            // Calculate Available Balance for Credit Card: Limit - Debt
+            balance = limit - debt;
+            outstandingBalance = debt;
+        }
 
         // Auto-fill details from Bank if bankId is provided
         if (createWalletDto.bankId) {
@@ -204,6 +211,8 @@ export class WalletsService {
         const newWallet = new this.walletModel({
             ...createWalletDto,
             balance,
+            initialBalance: balance,
+            outstandingBalance,
             userId: new Types.ObjectId(userId),
         });
         return newWallet.save();

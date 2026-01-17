@@ -1,6 +1,6 @@
 
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, IsEnum, IsNumber, IsOptional, Min, IsDateString, IsMongoId } from 'class-validator';
+import { IsDateString, IsEnum, IsMongoId, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateWalletDto {
     @ApiProperty()
@@ -70,6 +70,12 @@ export class CreateWalletDto {
     @IsNumber()
     @Min(0)
     creditLimit?: number;
+
+    @ApiProperty({ required: false })
+    @IsOptional()
+    @IsNumber()
+    @Min(0)
+    initialDebt?: number;
 
     @ApiProperty({ required: false })
     @IsOptional()
